@@ -22,7 +22,7 @@ int TurnRigh(int a){
 
 int TurnLeft(int a){
     _LATA0 = 0;
-    _LATA1 = 0;
+    _LATA1 = 1;
     OC2RS = a;
     OC2R = OC2RS/2;
     OC3RS = a;
@@ -40,7 +40,7 @@ int GoStraight(int a){
 
 int GoBack(int a){
     _LATA0 = 0;
-    _LATA1 = 1;
+    _LATA1 = 0;
     OC2RS = a; // half step, 2rev/s
     OC2R = OC2RS/2;
     OC3RS = a;
