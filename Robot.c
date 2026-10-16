@@ -79,13 +79,13 @@ int main(void) {
 
     while (1){
         _OC2IE = 0;
-        step = 0
+        step = 0;
         _T1ON = 1;
         TMR1 = 0; 
         if (state == Stop){
             if (TMR1 >= 62500){ //Start going forward after 1s
                 _OC2IE = 0;
-                step = 0
+                step = 0;
                 _T1ON = 1;
                 TMR1 = 0; 
                 GoStraight(4999);
@@ -98,7 +98,7 @@ int main(void) {
                     count ++;
                     N = 0;
                     _OC2IE = 0;
-                    step = 0
+                    step = 0;
                     _T1ON = 0;
                     TMR1 = 0;
                     state = Stop;                    
@@ -109,7 +109,7 @@ int main(void) {
                     count ++;
                     N = 280 * 2;
                     _OC2IE = 1;
-                    step = 0
+                    step = 0;
                     _T1ON = 0;
                     TMR1 = 0;
                     TurnRigh(4999);
@@ -120,7 +120,7 @@ int main(void) {
                 count ++;
                 N = 280;
                 _OC2IE = 1;
-                step = 0
+                step = 0;
                 _T1ON = 0;
                 TMR1 = 0;
                 TurnRigh(4999);
@@ -130,7 +130,7 @@ int main(void) {
         else if (state == T180){
             if (step >= N){
                 _OC2IE = 0;
-                step = 0
+                step = 0;
                 _T1ON = 1;
                 TMR1 = 0; 
                 TurnRigh(4999);
