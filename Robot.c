@@ -7,17 +7,15 @@
 
 /*
  * PINOUT
-     2 (RA0) Motor 1 Direction 1
-     3 (RA1) Motor 1 Direction 2
-     6 (RB2) Motor 2 Direction 1
-     7 (RA2) Motor 2 Direction 2
+     2 (RA0) Motor 1 Direction
+     3 (RA1) Motor 2 Direction
      4 (OC2) Motor 1 PWM
      5 (OC3) Motor 2 PWM
  */
 
 
 #include "xc.h"
-#pragma config FNOSC = FRCDIV
+#pragma config FNOSC = FRC
 #pragma config ICS = PGx3
 
 enum { FORWARD, BACK, WAITING, TURNRIGHT, TURNLEFT, TURNAROUND } state;
@@ -35,7 +33,6 @@ void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void);
 
 int main(void) {
     SetPins();
-    _RCDIV = 0b010;
 
     // Set up the interrupt on OC2
     _OC2IP = 4; // Select the interrupt priority
@@ -52,20 +49,20 @@ int main(void) {
 
     while (1) {
         switch (state) {
-            case FORWARD:
-                numStepsUntilRight = 1200;
-                numStepsUntil180 = 2800;
-                numStepsUntilStop = 4800;
+            case FORWARD: ;
+                int numStepsUntilRight = 1200;
+                int numStepsUntil180 = 2600;
+                int numStepsUntilStop = 4200;
                 if (numStepsTaken == numStepsUntilRight) {
                     Motor1Forward();
-                    Motor2Backward();
+                    Motor2Back();
                     state = TURNRIGHT;
                     break;
                 }
                 
                 if (numStepsTaken == numStepsUntil180) {
                     Motor1Forward();
-                    Motor2Backward();
+                    Motor2Back();
                     state = TURNAROUND;
                     break;
                 }
@@ -74,26 +71,26 @@ int main(void) {
                     Motor1Off();
                     Motor2Off();
                     TMR1 = 0;
-                    state = WAITING;
                     break;
                 }
-                
                 break;
 
-            case BACKWARD:
+            case BACK:
                 break;
 
             case WAITING:
-                if (TMR1 >= 10000) {
+                if (TMR1 = 10000) {
+                    OC2CON1bits.OCM = 0b110;
+                    OC3CON1bits.OCM = 0b110;
                     Motor1Forward();
                     Motor2Forward();
-                    state = FORWARD;
                     numStepsTaken = 0;
+                    state = FORWARD;
                 }
                 break;
 
-            case TURNRIGHT:
-                numStepsUntilForward = 1600;
+            case TURNRIGHT: ;
+                int numStepsUntilForward = 1400;
                 if (numStepsTaken == numStepsUntilForward) {
                     Motor1Forward();
                     Motor2Forward();
@@ -105,7 +102,7 @@ int main(void) {
                 break;
 
             case TURNAROUND:
-                numStepsUntilForward = 3600;
+                numStepsUntilForward = 3000;
                 if (numStepsTaken == numStepsUntilForward) {
                     Motor1Forward();
                     Motor2Forward();
@@ -123,62 +120,65 @@ void SetPins() {
     // turn off analog
     _ANSA0 = 0;
     _ANSA1 = 0;
-    _ANSB2 = 0;
-    _ANSA2 = 0;
 
     // digital output
     _TRISA0 = 0;
     _TRISA1 = 0;
-    _TRISB2 = 0;
-    _TRISA2 = 0;
 
     // configure OC2 & OC3
-    OC2CON1 = 0x1C06;
-    OC2CON2 = 0x001F;
-    OC2CON1 = 0x1C06;
-    OC2CON2 = 0x001F;
+    OC2CON1 = 0;
+    OC2CON2 = 0;
+    OC2CON1bits.OCTSEL = 0b111;
+    OC2CON2bits.SYNCSEL = 0b11111;
+    OC2CON2bits.OCTRIG = 0;
+    OC2RS = 5000;
+    OC2R = 2500;
+    OC2CON1bits.OCM = 0b110; // change to 0 to turn off
+    
+    OC3CON1 = 0;
+    OC3CON2 = 0;
+    OC3CON1bits.OCTSEL = 0b111;
+    OC3CON2bits.SYNCSEL = 0b11111;
+    OC3CON2bits.OCTRIG = 0;
+    OC3RS = 5000;
+    OC3R = 2500;
+    OC3CON1bits.OCM = 0b110; // change to 0 to stop PWM
 }
 
 void Motor1Forward() {
     _LATA0 = 1;
-    _LATA1 = 0;
     OC2RS = 5000;
     OC2R = 2500;
 }
 
 void Motor1Back() {
     _LATA0 = 0;
-    _LATA1 = 1;
     OC2RS = 5000;
     OC2R = 2500;
 }
 
 void Motor1Off() {
-    _LATA0 = 0;
-    _LATA1 = 0;
+    OC2CON1bits.OCM = 0;
 }
 
 void Motor2Forward() {
-    _LATB2 = 1;
-    _LATA2 = 0;
+    _LATA1 = 1;
     OC3RS = 5000;
     OC3R = 2500;
 }
 
 void Motor2Back() {
-    _LATB2 = 0;
-    _LATA2 = 1;
+    _LATA1 = 0;
     OC3RS = 5000;
     OC3R = 2500;
 }
 
-void Motor1Off() {
-    _LATB2 = 0;
-    _LATA2 = 0;
+void Motor2Off() {
+    OC3CON1bits.OCM = 0;
 }
 
 void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void)
 {
     _OC2IF = 0; // Clear the interrupt flag
-    numberOfStepsTaken++;
+    numStepsTaken++;
 }
