@@ -12,7 +12,7 @@
      4 (OC2) Motor 1 PWM
      5 (OC3) Motor 2 PWM
  */
-
+ 
 
 #include "xc.h"
 #pragma config FNOSC = FRC
