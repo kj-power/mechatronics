@@ -46,32 +46,33 @@ int main(void) {
     state = FORWARD;
     Motor1Forward();
     Motor2Forward();
+    
+    int turned90 = 0;
 
     while (1) {
         switch (state) {
             case FORWARD: ;
-                int numStepsUntilRight = 1200;
-                int numStepsUntil180 = 2600;
-                int numStepsUntilStop = 4200;
-                if (numStepsTaken == numStepsUntilRight) {
-                    Motor1Forward();
-                    Motor2Back();
-                    state = TURNRIGHT;
-                    break;
+                int numStepsUntilRight = 2000;
+                int numStepsUntil180 = 2000;
+                
+                if (turned90 == 0) {
+                   if (numStepsTaken == numStepsUntilRight) {
+                        Motor1Back();
+                        Motor2Forward();
+                        state = TURNRIGHT;
+                        numStepsTaken = 0;
+                        break;
+                    } 
                 }
                 
-                if (numStepsTaken == numStepsUntil180) {
-                    Motor1Forward();
-                    Motor2Back();
-                    state = TURNAROUND;
-                    break;
-                }
-
-                if (numStepsTaken == numStepsUntilStop) {
-                    Motor1Off();
-                    Motor2Off();
-                    TMR1 = 0;
-                    break;
+                else if (turned90 == 1) {
+                    if (numStepsTaken == numStepsUntil180) {
+                        Motor1Forward();
+                        Motor2Back();
+                        state = TURNAROUND;
+                        numStepsTaken = 0;
+                        break;
+                    }
                 }
                 break;
 
@@ -79,22 +80,16 @@ int main(void) {
                 break;
 
             case WAITING:
-                if (TMR1 = 10000) {
-                    OC2CON1bits.OCM = 0b110;
-                    OC3CON1bits.OCM = 0b110;
-                    Motor1Forward();
-                    Motor2Forward();
-                    numStepsTaken = 0;
-                    state = FORWARD;
-                }
                 break;
 
             case TURNRIGHT: ;
-                int numStepsUntilForward = 1400;
+                int numStepsUntilForward = 300;
                 if (numStepsTaken == numStepsUntilForward) {
                     Motor1Forward();
                     Motor2Forward();
                     state = FORWARD;
+                    numStepsTaken = 0;
+                    turned90 = 1;
                 }
                 break;
 
@@ -102,11 +97,13 @@ int main(void) {
                 break;
 
             case TURNAROUND:
-                numStepsUntilForward = 3000;
+                numStepsUntilForward = 600;
                 if (numStepsTaken == numStepsUntilForward) {
                     Motor1Forward();
                     Motor2Forward();
                     state = FORWARD;
+                    numStepsTaken = 0;
+                    turned90 = 0;
                 }
                 break;
     
@@ -131,8 +128,8 @@ void SetPins() {
     OC2CON1bits.OCTSEL = 0b111;
     OC2CON2bits.SYNCSEL = 0b11111;
     OC2CON2bits.OCTRIG = 0;
-    OC2RS = 5000;
-    OC2R = 2500;
+    OC2RS = 6000;
+    OC2R = 3000;
     OC2CON1bits.OCM = 0b110; // change to 0 to turn off
     
     OC3CON1 = 0;
@@ -140,21 +137,21 @@ void SetPins() {
     OC3CON1bits.OCTSEL = 0b111;
     OC3CON2bits.SYNCSEL = 0b11111;
     OC3CON2bits.OCTRIG = 0;
-    OC3RS = 5000;
-    OC3R = 2500;
+    OC3RS = 6000;
+    OC3R = 3000;
     OC3CON1bits.OCM = 0b110; // change to 0 to stop PWM
 }
 
 void Motor1Forward() {
     _LATA0 = 1;
-    OC2RS = 5000;
-    OC2R = 2500;
+//    OC2RS = 10000;
+//    OC2R = 5000;
 }
 
 void Motor1Back() {
     _LATA0 = 0;
-    OC2RS = 5000;
-    OC2R = 2500;
+//    OC2RS = 10000;
+//    OC2R = 5000;
 }
 
 void Motor1Off() {
@@ -163,14 +160,14 @@ void Motor1Off() {
 
 void Motor2Forward() {
     _LATA1 = 1;
-    OC3RS = 5000;
-    OC3R = 2500;
+//    OC3RS = 10000;
+//    OC3R = 5000;
 }
 
 void Motor2Back() {
     _LATA1 = 0;
-    OC3RS = 5000;
-    OC3R = 2500;
+//    OC3RS = 10000;
+//    OC3R = 5000;
 }
 
 void Motor2Off() {
