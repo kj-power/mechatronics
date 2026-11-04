@@ -7,10 +7,25 @@
 
 /*
  * PINOUT
-     2 (RA0) Motor 1 Direction
-     3 (RA1) Motor 2 Direction
-     4 (OC2) Motor 1 PWM
-     5 (OC3) Motor 2 PWM
+ *   2 (RA0 DO) Motor R Direction
+ *   3 (RA1 DO) Motor L Direction
+ *   4 (OC2) Motor R PWM
+ *   5 (OC3) Motor L PWM
+ *   6 (RB2 - AN4) left distance sensor
+ *   7 (RA2 - AN13) center distance sensor
+ *   8 (RA3 - AN14) right distance sensor
+ *   9 N/A
+ *   10 N/A
+ *   11 (RB7 - DO) laser
+ *   12 (RB8 - DO) left motor direction
+ *   13 (RB9 - DO) right motor direction
+ *   14 (OC1) Servo Motors PWM
+ *   15 (AN12) Ball Color QRD
+ *   16 (AN11) Right line following QRD
+ *   17 (AN10) Left line following QRD
+ *   18 (AN9) Center line following QRD
+ *   19 Ground
+ *   20 Power with 12V
  */
  
 
@@ -18,21 +33,24 @@
 #pragma config FNOSC = FRC
 #pragma config ICS = PGx3
 
-enum { FORWARD, BACK, WAITING, TURNRIGHT, TURNLEFT, TURNAROUND } state;
+enum { FORWARD, BACK, WAITING, TURNRIGHT, TURNLEFT, TURNAROUND, ADJUSTRIGHT, ADJUSTLEFT, FOLLOWLINE } state;
 int numStepsTaken = 0;
+int lineFollowingThreshold = 1300;
 
 void SetPins();
+void Config_ADC();
 void SetTimer();
-void Motor1Forward();
-void Motor2Forward();
-void Motor1Back();
-void Motor2Back();
-void Motor1Off();
-void Motor2Off();
+void MotorRForward();
+void MotorLForward();
+void MotorRBack();
+void MotorLBack();
+void MotorROff();
+void MotorLOff();
 void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void);
 
 int main(void) {
     SetPins();
+    Config_ADC();
 
     // Set up the interrupt on OC2
     _OC2IP = 4; // Select the interrupt priority
@@ -43,9 +61,9 @@ int main(void) {
     T1CONbits.TCS = 0;
     T1CONbits.TCKPS = 0b10;
 
-    state = FORWARD;
-    Motor1Forward();
-    Motor2Forward();
+    state = FOLLOWLINE;
+    MotorRForward();
+    MotorLForward();
     
     int turned90 = 0;
 
@@ -57,8 +75,8 @@ int main(void) {
                 
                 if (turned90 == 0) {
                    if (numStepsTaken == numStepsUntilRight) {
-                        Motor1Back();
-                        Motor2Forward();
+                        MotorRBack();
+                        MotorLForward();
                         state = TURNRIGHT;
                         numStepsTaken = 0;
                         break;
@@ -67,8 +85,8 @@ int main(void) {
                 
                 else if (turned90 == 1) {
                     if (numStepsTaken == numStepsUntil180) {
-                        Motor1Forward();
-                        Motor2Back();
+                        MotorRForward();
+                        MotorLBack();
                         state = TURNAROUND;
                         numStepsTaken = 0;
                         break;
@@ -85,8 +103,8 @@ int main(void) {
             case TURNRIGHT: ;
                 int numStepsUntilForward = 300;
                 if (numStepsTaken == numStepsUntilForward) {
-                    Motor1Forward();
-                    Motor2Forward();
+                    MotorRForward();
+                    MotorLForward();
                     state = FORWARD;
                     numStepsTaken = 0;
                     turned90 = 1;
@@ -99,11 +117,58 @@ int main(void) {
             case TURNAROUND:
                 numStepsUntilForward = 600;
                 if (numStepsTaken == numStepsUntilForward) {
-                    Motor1Forward();
-                    Motor2Forward();
+                    MotorRForward();
+                    MotorLForward();
                     state = FORWARD;
                     numStepsTaken = 0;
                     turned90 = 0;
+                }
+                break;
+                
+            case FOLLOWLINE:
+                if (ADC1BUF10 <= lineFollowingThreshold)
+                {
+                    MotorLOff();
+                    state = ADJUSTLEFT;
+                    break;
+                }
+                else if (ADC1BUF11 <= lineFollowingThreshold)
+                {
+                    MotorROff();
+                    state = ADJUSTRIGHT;
+                    break;
+                }
+                break;
+                
+            case ADJUSTRIGHT:
+                if (ADC1BUF9 <= lineFollowingThreshold)
+                {
+                    MotorRForward();
+                    state = FOLLOWLINE;
+                    break;
+                }
+                else if (ADC1BUF10 <= lineFollowingThreshold)
+                {
+                    MotorRForward();
+                    MotorLOff();
+                    state = ADJUSTLEFT;
+                    break;
+                }
+                break;
+                
+            case ADJUSTLEFT:
+                if (ADC1BUF9 <= lineFollowingThreshold)
+                {
+                    MotorLForward();
+                    state = FOLLOWLINE;
+                    break;
+                }
+                else if (ADC1BUF11 <= lineFollowingThreshold)
+                {
+                    MotorLForward();
+                    MotorROff();
+                    state = ADJUSTRIGHT;
+                    break;
                 }
                 break;
     
@@ -113,14 +178,43 @@ int main(void) {
     
 }
 
+void Config_ADC(void) {
+    _ADON = 0;    // Disable A/D module during configuration
+    
+    // AD1CON1
+    _MODE12 = 1;  // 12-bit resolution
+    _FORM = 0;    // unsigned integer output
+    _SSRC = 7;    // auto convert
+    _ASAM = 1;    // auto sample
+
+    // AD1CON2
+    _PVCFG = 0;   // use VDD as positive reference
+    _NVCFG = 0;   // use VSS as negative reference
+    _BUFREGEN = 1;// store results in buffer corresponding to channel number
+    _CSCNA = 1;   // scanning mode
+    _SMPI = 0b00010;    // begin new sampling sequence after every 3 samples
+    _ALTS = 0;    // sample MUXA only
+
+    // AD1CON3
+    _ADRC = 0;    // use system clock
+    _SAMC = 1;    // sample every A/D period
+    _ADCS = 0x3F; // TAD = 64*TCY
+
+    // AD1CSS -- Choose which channel/pin to scan
+    _CSS9 = 1; // pin 18 (center line following)
+    _CSS10 = 1; // pin 17 (left line following)
+    _CSS11 = 1; // pin 16 (right line following)
+    
+    _ADON = 1;    // enable module
+
+}
+
 void SetPins() {
     // turn off analog
-    _ANSA0 = 0;
-    _ANSA1 = 0;
 
     // digital output
-    _TRISA0 = 0;
-    _TRISA1 = 0;
+    _TRISB8 = 0;
+    _TRISB9 = 0;
 
     // configure OC2 & OC3
     OC2CON1 = 0;
@@ -140,37 +234,47 @@ void SetPins() {
     OC3RS = 6000;
     OC3R = 3000;
     OC3CON1bits.OCM = 0b110; // change to 0 to stop PWM
+    
+    // line following pins
+    _ANSB13 = 1;
+    _TRISB13 = 1;
+    _ANSB14 = 1;
+    _TRISB14 = 1;
+    _ANSB15 = 1;
+    _TRISB15 = 1;
 }
 
-void Motor1Forward() {
-    _LATA0 = 1;
-//    OC2RS = 10000;
-//    OC2R = 5000;
+void MotorRForward() {
+    _LATB9 = 1;
+    OC2RS = 10000;
+    OC2R = 5000;
+    OC2CON1bits.OCM = 0b110;
 }
 
-void Motor1Back() {
-    _LATA0 = 0;
-//    OC2RS = 10000;
-//    OC2R = 5000;
+void MotorRBack() {
+    _LATB9 = 0;
+    OC2RS = 10000;
+    OC2R = 5000;
 }
 
-void Motor1Off() {
+void MotorROff() {
     OC2CON1bits.OCM = 0;
 }
 
-void Motor2Forward() {
-    _LATA1 = 1;
-//    OC3RS = 10000;
-//    OC3R = 5000;
+void MotorLForward() {
+    _LATB8 = 1;
+    OC3RS = 10000;
+    OC3R = 5000;
+    OC3CON1bits.OCM = 0b110;
 }
 
-void Motor2Back() {
-    _LATA1 = 0;
-//    OC3RS = 10000;
-//    OC3R = 5000;
+void MotorLBack() {
+    _LATB8 = 0;
+    OC3RS = 10000;
+    OC3R = 5000;
 }
 
-void Motor2Off() {
+void MotorLOff() {
     OC3CON1bits.OCM = 0;
 }
 
