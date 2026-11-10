@@ -35,7 +35,7 @@
 
 enum { FORWARD, BACK, WAITING, TURNRIGHT, TURNLEFT, TURNAROUND, ADJUSTRIGHT, ADJUSTLEFT, FOLLOWLINE } state;
 int numStepsTaken = 0;
-int lineFollowingThreshold = 1300;
+int lineFollowingThreshold = 3000;
 
 void SetPins();
 void Config_ADC();
@@ -246,15 +246,15 @@ void SetPins() {
 
 void MotorRForward() {
     _LATB9 = 1;
-    OC2RS = 10000;
-    OC2R = 5000;
+    OC2RS = 6900;
+    OC2R = 3450;
     OC2CON1bits.OCM = 0b110;
 }
 
 void MotorRBack() {
     _LATB9 = 0;
-    OC2RS = 10000;
-    OC2R = 5000;
+    OC2RS = 6900;
+    OC2R = 3450;
 }
 
 void MotorROff() {
@@ -263,15 +263,15 @@ void MotorROff() {
 
 void MotorLForward() {
     _LATB8 = 1;
-    OC3RS = 10000;
-    OC3R = 5000;
+    OC3RS = 6900;
+    OC3R = 3450;
     OC3CON1bits.OCM = 0b110;
 }
 
 void MotorLBack() {
     _LATB8 = 0;
-    OC3RS = 10000;
-    OC3R = 5000;
+    OC3RS = 6900;
+    OC3R = 3450;
 }
 
 void MotorLOff() {
