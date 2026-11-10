@@ -32,13 +32,14 @@
 #include "xc.h"
 #pragma config FNOSC = FRC
 #pragma config ICS = PGx3
+#pragma config OSCIOFNC = OFF
 
 enum { LINEFOLLOW, CANYONNAV } mode;
 enum { FORWARD, BACK, WAITING, TURNRIGHT, TURNLEFT, TURNAROUND, ADJUSTRIGHT, ADJUSTLEFT, FOLLOWLINE } state;
 
 int numStepsTaken = 0;
-int lineFollowingThreshold = 3000;
-int wallThreshold = 1750;
+int lineFollowingThreshold = 2500;
+int wallThreshold = 3000;
 
 void SetPins();
 void Config_ADC();
@@ -124,18 +125,21 @@ int main(void) {
                         }
                         break;
                     break;
+                }
+                
                     
-                case CANYONNAV:
-                    case FORWARD: ;
-                        if (ADC1BUF13 >= wallThreshold) {
-                            MotorROff();
-                            MotorLOff();
-                            state = WAITING;
-                            break;
-                        }
+            case CANYONNAV:
+                switch (state) {
+                    case FORWARD:
+                    if (ADC1BUF13 >= wallThreshold) {
+                        MotorROff();
+                        MotorLOff();
+                        state = WAITING;
                         break;
+                    }
+                    break;
                         
-                    case WAITING:
+                case WAITING:
                         if (ADC1BUF4 > ADC1BUF14) {
                             MotorRBack();
                             MotorLForward();
@@ -153,7 +157,7 @@ int main(void) {
                         break;
                         
                     case TURNRIGHT: ;
-                        int numStepsUntilForward = 300;
+                        int numStepsUntilForward = 275;
                         if (numStepsTaken == numStepsUntilForward) {
                             MotorRForward();
                             MotorLForward();
@@ -173,13 +177,14 @@ int main(void) {
                         }
                         break;
                     break;
+                }
+                
             }
         }
         
     }
 
     
-}
 
 void Config_ADC(void) {
     _ADON = 0;    // Disable A/D module during configuration
@@ -260,15 +265,15 @@ void SetPins() {
 
 void MotorRForward() {
     _LATB9 = 1;
-    OC2RS = 6900;
-    OC2R = 3450;
+    OC2RS = 10000;
+    OC2R = 5000;
     OC2CON1bits.OCM = 0b110;
 }
 
 void MotorRBack() {
     _LATB9 = 0;
-    OC2RS = 6900;
-    OC2R = 3450;
+    OC2RS = 10000;
+    OC2R = 5000;
     OC2CON1bits.OCM = 0b110;
 }
 
@@ -278,15 +283,15 @@ void MotorROff() {
 
 void MotorLForward() {
     _LATB8 = 1;
-    OC3RS = 6900;
-    OC3R = 3450;
+    OC3RS = 10000;
+    OC3R = 5000;
     OC3CON1bits.OCM = 0b110;
 }
 
 void MotorLBack() {
     _LATB8 = 0;
-    OC3RS = 6900;
-    OC3R = 3450;
+    OC3RS = 10000;
+    OC3R = 5000;
     OC3CON1bits.OCM = 0b110;
 }
 
