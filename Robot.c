@@ -33,9 +33,12 @@
 #pragma config FNOSC = FRC
 #pragma config ICS = PGx3
 
+enum { LINEFOLLOW, CANYONNAV } mode;
 enum { FORWARD, BACK, WAITING, TURNRIGHT, TURNLEFT, TURNAROUND, ADJUSTRIGHT, ADJUSTLEFT, FOLLOWLINE } state;
+
 int numStepsTaken = 0;
 int lineFollowingThreshold = 3000;
+int wallThreshold = 1750;
 
 void SetPins();
 void Config_ADC();
@@ -68,111 +71,110 @@ int main(void) {
     int turned90 = 0;
 
     while (1) {
-        switch (state) {
-            case FORWARD: ;
-                int numStepsUntilRight = 2000;
-                int numStepsUntil180 = 2000;
-                
-                if (turned90 == 0) {
-                   if (numStepsTaken == numStepsUntilRight) {
-                        MotorRBack();
-                        MotorLForward();
-                        state = TURNRIGHT;
-                        numStepsTaken = 0;
+        switch (mode) {
+            
+            case LINEFOLLOW: 
+                switch (state) {
+
+                    case FOLLOWLINE:
+                        if (ADC1BUF10 <= lineFollowingThreshold)
+                        {
+                            MotorLOff();
+                            state = ADJUSTLEFT;
+                            break;
+                        }
+                        else if (ADC1BUF11 <= lineFollowingThreshold)
+                        {
+                            MotorROff();
+                            state = ADJUSTRIGHT;
+                            break;
+                        }
                         break;
-                    } 
-                }
-                
-                else if (turned90 == 1) {
-                    if (numStepsTaken == numStepsUntil180) {
-                        MotorRForward();
-                        MotorLBack();
-                        state = TURNAROUND;
-                        numStepsTaken = 0;
+
+                    case ADJUSTRIGHT:
+                        if (ADC1BUF9 <= lineFollowingThreshold)
+                        {
+                            MotorRForward();
+                            state = FOLLOWLINE;
+                            break;
+                        }
+                        else if (ADC1BUF10 <= lineFollowingThreshold)
+                        {
+                            MotorRForward();
+                            MotorLOff();
+                            state = ADJUSTLEFT;
+                            break;
+                        }
                         break;
-                    }
-                }
-                break;
 
-            case BACK:
-                break;
-
-            case WAITING:
-                break;
-
-            case TURNRIGHT: ;
-                int numStepsUntilForward = 300;
-                if (numStepsTaken == numStepsUntilForward) {
-                    MotorRForward();
-                    MotorLForward();
-                    state = FORWARD;
-                    numStepsTaken = 0;
-                    turned90 = 1;
-                }
-                break;
-
-            case TURNLEFT:
-                break;
-
-            case TURNAROUND:
-                numStepsUntilForward = 600;
-                if (numStepsTaken == numStepsUntilForward) {
-                    MotorRForward();
-                    MotorLForward();
-                    state = FORWARD;
-                    numStepsTaken = 0;
-                    turned90 = 0;
-                }
-                break;
-                
-            case FOLLOWLINE:
-                if (ADC1BUF10 <= lineFollowingThreshold)
-                {
-                    MotorLOff();
-                    state = ADJUSTLEFT;
+                    case ADJUSTLEFT:
+                        if (ADC1BUF9 <= lineFollowingThreshold)
+                        {
+                            MotorLForward();
+                            state = FOLLOWLINE;
+                            break;
+                        }
+                        else if (ADC1BUF11 <= lineFollowingThreshold)
+                        {
+                            MotorLForward();
+                            MotorROff();
+                            state = ADJUSTRIGHT;
+                            break;
+                        }
+                        break;
                     break;
-                }
-                else if (ADC1BUF11 <= lineFollowingThreshold)
-                {
-                    MotorROff();
-                    state = ADJUSTRIGHT;
+                    
+                case CANYONNAV:
+                    case FORWARD: ;
+                        if (ADC1BUF13 >= wallThreshold) {
+                            MotorROff();
+                            MotorLOff();
+                            state = WAITING;
+                            break;
+                        }
+                        break;
+                        
+                    case WAITING:
+                        if (ADC1BUF4 > ADC1BUF14) {
+                            MotorRBack();
+                            MotorLForward();
+                            numStepsTaken = 0;
+                            state = TURNRIGHT;
+                            break;
+                        }
+                        else if (ADC1BUF14 > ADC1BUF4) {
+                            MotorRForward();
+                            MotorLBack();
+                            numStepsTaken = 0;
+                            state = TURNLEFT;
+                            break;
+                        }
+                        break;
+                        
+                    case TURNRIGHT: ;
+                        int numStepsUntilForward = 300;
+                        if (numStepsTaken == numStepsUntilForward) {
+                            MotorRForward();
+                            MotorLForward();
+                            state = FORWARD;
+                            numStepsTaken = 0;
+                            break;
+                        }
+                        break;
+                        
+                    case TURNLEFT: ;
+                        if (numStepsTaken == numStepsUntilForward) {
+                            MotorRForward();
+                            MotorLForward();
+                            state = FORWARD;
+                            numStepsTaken = 0;
+                            break;
+                        }
+                        break;
                     break;
-                }
-                break;
-                
-            case ADJUSTRIGHT:
-                if (ADC1BUF9 <= lineFollowingThreshold)
-                {
-                    MotorRForward();
-                    state = FOLLOWLINE;
-                    break;
-                }
-                else if (ADC1BUF10 <= lineFollowingThreshold)
-                {
-                    MotorRForward();
-                    MotorLOff();
-                    state = ADJUSTLEFT;
-                    break;
-                }
-                break;
-                
-            case ADJUSTLEFT:
-                if (ADC1BUF9 <= lineFollowingThreshold)
-                {
-                    MotorLForward();
-                    state = FOLLOWLINE;
-                    break;
-                }
-                else if (ADC1BUF11 <= lineFollowingThreshold)
-                {
-                    MotorLForward();
-                    MotorROff();
-                    state = ADJUSTRIGHT;
-                    break;
-                }
-                break;
-    
+            }
         }
+        
     }
 
     
@@ -192,7 +194,7 @@ void Config_ADC(void) {
     _NVCFG = 0;   // use VSS as negative reference
     _BUFREGEN = 1;// store results in buffer corresponding to channel number
     _CSCNA = 1;   // scanning mode
-    _SMPI = 0b00010;    // begin new sampling sequence after every 3 samples
+    _SMPI = 0b00101;    // begin new sampling sequence after every *insert num of A2D pins* samples -- num pins - 1 = binary
     _ALTS = 0;    // sample MUXA only
 
     // AD1CON3
@@ -204,6 +206,9 @@ void Config_ADC(void) {
     _CSS9 = 1; // pin 18 (center line following)
     _CSS10 = 1; // pin 17 (left line following)
     _CSS11 = 1; // pin 16 (right line following)
+    _CSS4 = 1; // pin 6 (left sharp sensor)
+    _CSS13 = 1; // pin 7 (center sharp sensor)
+    _CSS14 = 1; // pin 8 (right sharp sensor)
     
     _ADON = 1;    // enable module
 
@@ -242,6 +247,14 @@ void SetPins() {
     _TRISB14 = 1;
     _ANSB15 = 1;
     _TRISB15 = 1;
+    
+    //  sharp sensor pins
+    _ANSB2 = 1;
+    _TRISB2 = 1;
+    _ANSA2 = 1;
+    _TRISA2 = 1;
+    _ANSA3 = 1;
+    _TRISA3 = 1;
 }
 
 void MotorRForward() {
