@@ -64,7 +64,8 @@ int main(void) {
     T1CONbits.TCS = 0;
     T1CONbits.TCKPS = 0b10;
 
-    state = FOLLOWLINE;
+    mode = CANYONNAV;
+    state = FORWARD;
     MotorRForward();
     MotorLForward();
     
@@ -268,6 +269,7 @@ void MotorRBack() {
     _LATB9 = 0;
     OC2RS = 6900;
     OC2R = 3450;
+    OC2CON1bits.OCM = 0b110;
 }
 
 void MotorROff() {
@@ -285,6 +287,7 @@ void MotorLBack() {
     _LATB8 = 0;
     OC3RS = 6900;
     OC3R = 3450;
+    OC3CON1bits.OCM = 0b110;
 }
 
 void MotorLOff() {
