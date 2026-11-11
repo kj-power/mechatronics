@@ -27,165 +27,218 @@
  *   19 Ground
  *   20 Power with 12V
  */
- 
 
 #include "xc.h"
 #pragma config FNOSC = FRC
 #pragma config ICS = PGx3
 #pragma config OSCIOFNC = OFF
 
+#define LEFT_QRD ADC1BUF10 
+#define RIGHT_QRD ADC1BUF11
+#define CENTER_QRD ADC1BUF9
+#define LEFT_SHARP ADC1BUF4 
+#define RIGHT_SHARP ADC1BUF14
+#define CENTER_SHARP ADC1BUF13
+
 enum { LINEFOLLOW, CANYONNAV } mode;
-enum { FORWARD, BACK, WAITING, TURNRIGHT, TURNLEFT, TURNAROUND, ADJUSTRIGHT, ADJUSTLEFT, FOLLOWLINE } state;
+enum { TURNAROUND, ADJUSTRIGHT, ADJUSTLEFT, ONLINE } linestate;
+enum { FORWARD, BACK, WAITING, TURNRIGHT, TURNLEFT } canyonstate;
 
 int numStepsTaken = 0;
-int lineFollowingThreshold = 2500;
-int wallThreshold = 3000;
+const int numStepsFor90 = 540;
+int canyon_exit = 0;
+
+const int lineFollowingThreshold = 3300;
+const int transitionThreshold = 3600;
+
+const int wallThreshold = 2200;
+const int sideWallThreshold = 500;
+const int infinityThreshold = 400;
 
 void SetPins();
 void Config_ADC();
 void SetTimer();
+void ConfigureInterrupt();
 void MotorRForward();
 void MotorLForward();
 void MotorRBack();
 void MotorLBack();
 void MotorROff();
 void MotorLOff();
+void RampRMotor(int newSpeed);
+
 void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void);
 
 int main(void) {
     SetPins();
     Config_ADC();
-
-    // Set up the interrupt on OC2
-    _OC2IP = 4; // Select the interrupt priority
-    _OC2IE = 1; // Enable the OC2 interrupt
-    _OC2IF = 0; // Clear the interrupt flag
-
-    T1CONbits.TON = 1;
-    T1CONbits.TCS = 0;
-    T1CONbits.TCKPS = 0b10;
-
-    mode = CANYONNAV;
-    state = FORWARD;
+    SetTimer();
+    ConfigureInterrupt();
+    
+    TMR1 = 0;
+    
+    while (TMR1 < 3000) {
+        MotorROff();
+        MotorLOff();
+    }
+    
+    // set initial state
+    mode = LINEFOLLOW;
+    linestate = ONLINE;
     MotorRForward();
     MotorLForward();
-    
-    int turned90 = 0;
 
     while (1) {
-        switch (mode) {
+        
+    switch (mode) {
             
-            case LINEFOLLOW: 
-                switch (state) {
-
-                    case FOLLOWLINE:
-                        if (ADC1BUF10 <= lineFollowingThreshold)
+            case LINEFOLLOW:
+                if (CENTER_QRD >= transitionThreshold && LEFT_QRD >= transitionThreshold && RIGHT_QRD >= transitionThreshold) {
+                        mode = CANYONNAV;
+                        canyonstate = FORWARD;
+                        MotorRForward();
+                        MotorLForward();
+                        break;
+                    }
+                
+                switch (linestate) {
+                    case ONLINE:
+                        if (LEFT_QRD <= lineFollowingThreshold)
                         {
-                            MotorLOff();
-                            state = ADJUSTLEFT;
+                            MotorLBack();
+                            linestate = ADJUSTLEFT;
                             break;
                         }
-                        else if (ADC1BUF11 <= lineFollowingThreshold)
+                        else if (RIGHT_QRD <= lineFollowingThreshold)
                         {
-                            MotorROff();
-                            state = ADJUSTRIGHT;
+                            MotorRBack();
+                            linestate = ADJUSTRIGHT;
                             break;
                         }
                         break;
 
                     case ADJUSTRIGHT:
-                        if (ADC1BUF9 <= lineFollowingThreshold)
+                        if (CENTER_QRD <= lineFollowingThreshold)
                         {
                             MotorRForward();
-                            state = FOLLOWLINE;
+                            linestate = ONLINE;
                             break;
                         }
-                        else if (ADC1BUF10 <= lineFollowingThreshold)
+                        else if (LEFT_QRD <= lineFollowingThreshold)
                         {
                             MotorRForward();
-                            MotorLOff();
-                            state = ADJUSTLEFT;
+                            MotorLBack();
+                            linestate = ADJUSTLEFT;
                             break;
                         }
                         break;
 
                     case ADJUSTLEFT:
-                        if (ADC1BUF9 <= lineFollowingThreshold)
+                        if (CENTER_QRD <= lineFollowingThreshold)
                         {
                             MotorLForward();
-                            state = FOLLOWLINE;
+                            linestate = ONLINE;
                             break;
                         }
-                        else if (ADC1BUF11 <= lineFollowingThreshold)
+                        else if (RIGHT_QRD <= lineFollowingThreshold)
                         {
                             MotorLForward();
-                            MotorROff();
-                            state = ADJUSTRIGHT;
+                            MotorRBack();
+                            linestate = ADJUSTRIGHT;
                             break;
                         }
                         break;
-                    break;
                 }
+                break;
                 
                     
             case CANYONNAV:
-                switch (state) {
-                    case FORWARD:
-                    if (ADC1BUF13 >= wallThreshold) {
+                if (CENTER_QRD <= transitionThreshold || LEFT_QRD <= transitionThreshold || RIGHT_QRD <= transitionThreshold) {
                         MotorROff();
                         MotorLOff();
-                        state = WAITING;
+                        if (LEFT_SHARP >= sideWallThreshold && RIGHT_SHARP < infinityThreshold) {
+                            canyonstate = TURNLEFT;
+                            MotorRForward();
+                            MotorLBack();
+                            canyon_exit = 1;
+                            break;
+                        }
+                        else if (LEFT_SHARP >= sideWallThreshold && RIGHT_SHARP < infinityThreshold) {
+                            canyonstate = TURNRIGHT;
+                            MotorLForward();
+                            MotorRBack();
+                            canyon_exit = 1;
+                            break;
+                        }
                         break;
                     }
-                    break;
+                
+                switch (canyonstate) {
+                    case FORWARD:
+                        if (CENTER_SHARP >= wallThreshold) {
+                            MotorROff();
+                            MotorLOff();
+                            canyonstate = WAITING;
+                            break;
+                        }
+                        break;
                         
-                case WAITING:
-                        if (ADC1BUF4 > ADC1BUF14) {
+                    case WAITING:
+                        if (LEFT_SHARP >= sideWallThreshold && RIGHT_SHARP < infinityThreshold) {
                             MotorRBack();
                             MotorLForward();
                             numStepsTaken = 0;
-                            state = TURNRIGHT;
+                            canyonstate = TURNRIGHT;
                             break;
                         }
-                        else if (ADC1BUF14 > ADC1BUF4) {
+                        else if (RIGHT_SHARP >= sideWallThreshold && LEFT_SHARP < infinityThreshold) {
                             MotorRForward();
                             MotorLBack();
                             numStepsTaken = 0;
-                            state = TURNLEFT;
+                            canyonstate = TURNLEFT;
                             break;
                         }
                         break;
                         
-                    case TURNRIGHT: ;
-                        int numStepsUntilForward = 275;
-                        if (numStepsTaken == numStepsUntilForward) {
+                    case TURNRIGHT:
+                        if (numStepsTaken == numStepsFor90) {
                             MotorRForward();
                             MotorLForward();
-                            state = FORWARD;
+                            canyonstate = FORWARD;
                             numStepsTaken = 0;
+                            if (canyon_exit == 1) {
+                                mode = LINEFOLLOW;
+                                linestate = ONLINE;
+                                MotorRForward();
+                                MotorLForward();
+                            }
                             break;
                         }
                         break;
                         
-                    case TURNLEFT: ;
-                        if (numStepsTaken == numStepsUntilForward) {
+                    case TURNLEFT:
+                        if (numStepsTaken == numStepsFor90) {
                             MotorRForward();
                             MotorLForward();
-                            state = FORWARD;
+                            canyonstate = FORWARD;
                             numStepsTaken = 0;
+                            if (canyon_exit == 1) {
+                                mode = LINEFOLLOW;
+                                linestate = ONLINE;
+                                MotorRForward();
+                                MotorLForward();
+                            }
                             break;
                         }
                         break;
-                    break;
                 }
+                break;
                 
             }
         }
         
     }
-
     
-
 void Config_ADC(void) {
     _ADON = 0;    // Disable A/D module during configuration
     
@@ -221,13 +274,12 @@ void Config_ADC(void) {
 }
 
 void SetPins() {
-    // turn off analog
 
-    // digital output
+    // digital output for motor direction
     _TRISB8 = 0;
     _TRISB9 = 0;
 
-    // configure OC2 & OC3
+    // configure OC2 & OC3 for motor PWM
     OC2CON1 = 0;
     OC2CON2 = 0;
     OC2CON1bits.OCTSEL = 0b111;
@@ -263,17 +315,30 @@ void SetPins() {
     _TRISA3 = 1;
 }
 
+void ConfigureInterrupt() {
+    // Set up the interrupt on OC2
+    _OC2IP = 4; // Select the interrupt priority
+    _OC2IE = 1; // Enable the OC2 interrupt
+    _OC2IF = 0; // Clear the interrupt flag
+}
+
+void SetTimer() {
+    T1CONbits.TON = 1;
+    T1CONbits.TCS = 0;
+    T1CONbits.TCKPS = 0b10;
+}
+
 void MotorRForward() {
     _LATB9 = 1;
-    OC2RS = 10000;
-    OC2R = 5000;
+    OC2RS = 5000;
+    OC2R = 2500;
     OC2CON1bits.OCM = 0b110;
 }
 
 void MotorRBack() {
     _LATB9 = 0;
-    OC2RS = 10000;
-    OC2R = 5000;
+    OC2RS = 5000;
+    OC2R = 2500;
     OC2CON1bits.OCM = 0b110;
 }
 
@@ -283,20 +348,37 @@ void MotorROff() {
 
 void MotorLForward() {
     _LATB8 = 1;
-    OC3RS = 10000;
-    OC3R = 5000;
+    OC3RS = 5000;
+    OC3R = 2500;
     OC3CON1bits.OCM = 0b110;
 }
 
 void MotorLBack() {
     _LATB8 = 0;
-    OC3RS = 10000;
-    OC3R = 5000;
+    OC3RS = 5000;
+    OC3R = 2500;
     OC3CON1bits.OCM = 0b110;
 }
 
 void MotorLOff() {
     OC3CON1bits.OCM = 0;
+}
+
+void RampRMotor(int newSpeed) {
+    int currentSpeed = OC2RS;
+    int iterationVal = (newSpeed - currentSpeed) / 10;
+    
+    while (currentSpeed != newSpeed) {
+        if (currentSpeed < newSpeed) {
+            currentSpeed = currentSpeed + iterationVal;
+            OC2RS = currentSpeed;
+        }
+        else if  (currentSpeed > newSpeed) {
+            currentSpeed = currentSpeed - iterationVal;
+            OC2RS = currentSpeed;
+        }
+        OC2R = (int)OC2RS/2;
+    } 
 }
 
 void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void)
