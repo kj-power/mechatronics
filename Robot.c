@@ -28,6 +28,8 @@
  *   20 Power with 12V
  */
 
+// this is from git
+
 #include "xc.h"
 #pragma config FNOSC = FRC
 #pragma config ICS = PGx3
